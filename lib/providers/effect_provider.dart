@@ -40,6 +40,8 @@ class EffectNotifier extends StateNotifier<EffectSettings> {
 
   void setBlurAmount(double v) => state = state.copyWith(blurAmount: v);
 
+  void setIceCount(int v) => state = state.copyWith(iceCount: v);
+
   void applyPreset(EffectSettings preset) => state = preset;
 }
 

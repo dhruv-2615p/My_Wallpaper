@@ -64,11 +64,14 @@ class EffectSettings extends HiveObject {
   @HiveField(13)
   bool isBlurEnabled;
 
+  @HiveField(14)
+  int iceCount; // 0–5 floating ice cubes
+
   EffectSettings({
     this.name = 'Custom',
     this.gyroSensitivity = 1.0,
     this.waterLevel = 0.2,
-    this.waterColor = '#4400BFFF',
+    this.waterColor = '#9900BFFF',
     this.particleTypeIndex = 0,
     this.particleCount = 50,
     this.colorOverlayOpacity = 0.15,
@@ -79,6 +82,7 @@ class EffectSettings extends HiveObject {
     this.isParticlesEnabled = false,
     this.isColorOverlayEnabled = false,
     this.isBlurEnabled = false,
+    this.iceCount = 3,
   });
 
   ParticleType get particleType => ParticleType
@@ -101,6 +105,7 @@ class EffectSettings extends HiveObject {
     bool? isParticlesEnabled,
     bool? isColorOverlayEnabled,
     bool? isBlurEnabled,
+    int? iceCount,
   }) {
     return EffectSettings(
       name: name ?? this.name,
@@ -118,6 +123,7 @@ class EffectSettings extends HiveObject {
       isColorOverlayEnabled:
           isColorOverlayEnabled ?? this.isColorOverlayEnabled,
       isBlurEnabled: isBlurEnabled ?? this.isBlurEnabled,
+      iceCount: iceCount ?? this.iceCount,
     );
   }
 
@@ -134,8 +140,9 @@ class EffectSettings extends HiveObject {
         gyroSensitivity: 1.5,
         isGyroEnabled: true,
         isWaterEnabled: true,
-        waterLevel: 0.2,
-        waterColor: '#4400BFFF',
+        waterLevel: 0.25,
+        waterColor: '#AA0088CC',
+        iceCount: 3,
         isColorOverlayEnabled: true,
         colorOverlayHex: '#191970',
         colorOverlayOpacity: 0.10,

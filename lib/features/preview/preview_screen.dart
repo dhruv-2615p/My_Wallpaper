@@ -8,6 +8,7 @@ import '../../core/utils/image_utils.dart';
 import '../../services/wallpaper_service.dart';
 import '../../shared/extensions/context_extensions.dart';
 import 'widgets/gyro_parallax_layer.dart';
+import 'widgets/video_player_layer.dart';
 import 'widgets/water_overlay_widget.dart';
 import 'widgets/particle_overlay.dart';
 import 'widgets/color_overlay_widget.dart';
@@ -84,8 +85,33 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
     }
   }
 
+  /// Set a video live wallpaper with current effects. Android only.
+  Future<void> _setVideoLiveWallpaper() async {
+    setState(() => _isSettingWallpaper = true);
+    try {
+      final videoPath = widget.wallpaper.localPath!;
+      final fx = ref.read(effectSettingsProvider);
+      final ok = await WallpaperService.setVideoLiveWallpaper(
+        videoPath,
+        fx: fx,
+      );
+      if (mounted) {
+        if (ok) {
+          context.showSnack(
+            'Video live wallpaper picker opened — tap "Set wallpaper" to apply',
+          );
+        } else {
+          context.showSnack('Failed to open video live wallpaper picker');
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isSettingWallpaper = false);
+    }
+  }
+
   void _showSetWallpaperDialog() {
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    final isVideo = widget.wallpaper.isVideo;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -110,8 +136,23 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
-            // Live wallpaper (Android only) — shown first so it is prominent
-            if (isAndroid)
+            // Video live wallpaper (Android only)
+            if (isVideo && isAndroid)
+              ListTile(
+                leading: const Icon(Icons.slow_motion_video_rounded,
+                    color: Colors.deepPurpleAccent),
+                title: const Text('Video Live Wallpaper'),
+                subtitle: const Text(
+                  'Looping video with effects on home screen',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setVideoLiveWallpaper();
+                },
+              ),
+            // Image live wallpaper (Android only, non-video)
+            if (!isVideo && isAndroid)
               ListTile(
                 leading: const Icon(Icons.motion_photos_on_rounded,
                     color: Colors.deepPurpleAccent),
@@ -126,33 +167,36 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
                 },
               ),
             if (isAndroid) const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.home_rounded),
-              title: const Text('Home Screen'),
-              subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                _setWallpaper(WallpaperService.homeScreen);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.lock_rounded),
-              title: const Text('Lock Screen'),
-              subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                _setWallpaper(WallpaperService.lockScreen);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.phone_android_rounded),
-              title: const Text('Both Screens'),
-              subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                _setWallpaper(WallpaperService.bothScreens);
-              },
-            ),
+            // Static options only for images
+            if (!isVideo) ...[
+              ListTile(
+                leading: const Icon(Icons.home_rounded),
+                title: const Text('Home Screen'),
+                subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setWallpaper(WallpaperService.homeScreen);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.lock_rounded),
+                title: const Text('Lock Screen'),
+                subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setWallpaper(WallpaperService.lockScreen);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.phone_android_rounded),
+                title: const Text('Both Screens'),
+                subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setWallpaper(WallpaperService.bothScreens);
+                },
+              ),
+            ],
             const SizedBox(height: 16),
           ],
         ),
@@ -180,18 +224,25 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Layer 0: Base image + parallax
-                GyroParallaxLayer(
-                  imageUrl: imageUrl,
-                  sensitivity: fx.isGyroEnabled ? fx.gyroSensitivity : 0,
-                  layerDepth: 0.0,
-                ),
+                // Layer 0: Base — video player or image + parallax
+                if (widget.wallpaper.isVideo)
+                  VideoPlayerLayer(
+                    videoPath: imageUrl,
+                    sensitivity: fx.isGyroEnabled ? fx.gyroSensitivity : 0,
+                  )
+                else
+                  GyroParallaxLayer(
+                    imageUrl: imageUrl,
+                    sensitivity: fx.isGyroEnabled ? fx.gyroSensitivity : 0,
+                    layerDepth: 0.0,
+                  ),
 
                 // Layer 1: Water
                 if (fx.isWaterEnabled)
                   WaterOverlayWidget(
                     waterLevel: fx.waterLevel,
                     waterColor: _parseHex(fx.waterColor),
+                    iceCount: fx.iceCount,
                   ),
 
                 // Layer 2: Particles

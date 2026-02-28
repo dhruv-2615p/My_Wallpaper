@@ -16,30 +16,71 @@ final _localStorageProvider = Provider<StorageService>((ref) {
 
 /// Provider for user-picked wallpaper paths.
 final _myWallpapersProvider =
-    StateNotifierProvider<_MyWallpapersNotifier, List<String>>((ref) {
+    StateNotifierProvider<_MyWallpapersNotifier, List<_StoredWallpaper>>((ref) {
   return _MyWallpapersNotifier(ref.watch(_localStorageProvider));
 });
 
-class _MyWallpapersNotifier extends StateNotifier<List<String>> {
+class _StoredWallpaper {
+  static const String _imagePrefix = 'image::';
+  static const String _videoPrefix = 'video::';
+
+  final String path;
+  final bool isVideo;
+
+  const _StoredWallpaper({required this.path, required this.isVideo});
+
+  factory _StoredWallpaper.fromRaw(String raw) {
+    if (raw.startsWith(_videoPrefix)) {
+      return _StoredWallpaper(
+          path: raw.substring(_videoPrefix.length), isVideo: true);
+    }
+    if (raw.startsWith(_imagePrefix)) {
+      return _StoredWallpaper(
+          path: raw.substring(_imagePrefix.length), isVideo: false);
+    }
+    return _StoredWallpaper(path: raw, isVideo: false);
+  }
+
+  String toRaw() => isVideo ? '$_videoPrefix$path' : '$_imagePrefix$path';
+}
+
+class _MyWallpapersNotifier extends StateNotifier<List<_StoredWallpaper>> {
   final StorageService _storage;
 
-  _MyWallpapersNotifier(this._storage) : super(_storage.getMyWallpaperPaths());
+  _MyWallpapersNotifier(this._storage)
+      : super(
+          _storage.getMyWallpaperPaths().map(_StoredWallpaper.fromRaw).toList(),
+        );
 
-  Future<void> add(String path) async {
-    await _storage.addMyWallpaper(path);
-    state = _storage.getMyWallpaperPaths();
+  List<_StoredWallpaper> _readAll() {
+    return _storage
+        .getMyWallpaperPaths()
+        .map(_StoredWallpaper.fromRaw)
+        .toList();
+  }
+
+  Future<void> addImage(String path) async {
+    await _storage
+        .addMyWallpaper(_StoredWallpaper(path: path, isVideo: false).toRaw());
+    state = _readAll();
+  }
+
+  Future<void> addVideo(String path) async {
+    await _storage
+        .addMyWallpaper(_StoredWallpaper(path: path, isVideo: true).toRaw());
+    state = _readAll();
   }
 
   Future<void> removeAt(int index) async {
     await _storage.removeMyWallpaper(index);
-    state = _storage.getMyWallpaperPaths();
+    state = _readAll();
   }
 }
 
 class MyWallpapersScreen extends ConsumerWidget {
   const MyWallpapersScreen({super.key});
 
-  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+  Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
     final granted = await PermissionHelper.requestStoragePermission();
     if (!granted) {
       if (context.mounted) context.showSnack('Storage permission denied');
@@ -47,8 +88,61 @@ class MyWallpapersScreen extends ConsumerWidget {
     }
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked != null) {
-      await ref.read(_myWallpapersProvider.notifier).add(picked.path);
+      await ref.read(_myWallpapersProvider.notifier).addImage(picked.path);
     }
+  }
+
+  Future<void> _pickVideo(BuildContext context, WidgetRef ref) async {
+    final granted = await PermissionHelper.requestStoragePermission();
+    if (!granted) {
+      if (context.mounted) context.showSnack('Storage permission denied');
+      return;
+    }
+    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    if (picked != null) {
+      await ref.read(_myWallpapersProvider.notifier).addVideo(picked.path);
+    }
+  }
+
+  Future<void> _showAddOptions(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Add Image'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(context, ref);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_file_outlined),
+              title: const Text('Add Video'),
+              subtitle: const Text('For live wallpaper on Android'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickVideo(context, ref);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onItemTap(BuildContext context, _StoredWallpaper item) {
+    final model = item.isVideo
+        ? WallpaperModel.fromLocalVideo(item.path)
+        : WallpaperModel.fromLocal(item.path);
+    Navigator.pushNamed(
+      context,
+      AppRouter.preview,
+      arguments: model,
+    );
   }
 
   @override
@@ -58,13 +152,13 @@ class MyWallpapersScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('My Wallpapers')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _pick(context, ref),
+        onPressed: () => _showAddOptions(context, ref),
         child: const Icon(Icons.add_photo_alternate_rounded),
       ),
       body: paths.isEmpty
           ? const Center(
               child: Text(
-                'Tap + to add your own images',
+                'Tap + to add your own images or videos',
                 style: TextStyle(color: Colors.grey),
               ),
             )
@@ -78,10 +172,9 @@ class MyWallpapersScreen extends ConsumerWidget {
               ),
               itemCount: paths.length,
               itemBuilder: (context, index) {
-                final path = paths[index];
-                final model = WallpaperModel.fromLocal(path);
+                final item = paths[index];
                 return Dismissible(
-                  key: ValueKey(path),
+                  key: ValueKey(item.toRaw()),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
@@ -92,22 +185,29 @@ class MyWallpapersScreen extends ConsumerWidget {
                   onDismissed: (_) =>
                       ref.read(_myWallpapersProvider.notifier).removeAt(index),
                   child: GestureDetector(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRouter.preview,
-                      arguments: model,
-                    ),
+                    onTap: () => _onItemTap(context, item),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(path),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey.shade800,
-                          child: const Icon(Icons.broken_image,
-                              color: Colors.grey),
-                        ),
-                      ),
+                      child: item.isVideo
+                          ? Container(
+                              color: Colors.grey.shade900,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.play_circle_fill_rounded,
+                                  color: Colors.white,
+                                  size: 36,
+                                ),
+                              ),
+                            )
+                          : Image.file(
+                              File(item.path),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.grey.shade800,
+                                child: const Icon(Icons.broken_image,
+                                    color: Colors.grey),
+                              ),
+                            ),
                     ),
                   ),
                 );

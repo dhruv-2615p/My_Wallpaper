@@ -31,13 +31,14 @@ class EffectSettingsAdapter extends TypeAdapter<EffectSettings> {
       isParticlesEnabled: fields[11] as bool? ?? false,
       isColorOverlayEnabled: fields[12] as bool? ?? false,
       isBlurEnabled: fields[13] as bool? ?? false,
+      iceCount: fields[14] as int? ?? 3,
     );
   }
 
   @override
   void write(BinaryWriter writer, EffectSettings obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -65,7 +66,9 @@ class EffectSettingsAdapter extends TypeAdapter<EffectSettings> {
       ..writeByte(12)
       ..write(obj.isColorOverlayEnabled)
       ..writeByte(13)
-      ..write(obj.isBlurEnabled);
+      ..write(obj.isBlurEnabled)
+      ..writeByte(14)
+      ..write(obj.iceCount);
   }
 
   @override

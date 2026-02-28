@@ -68,8 +68,30 @@ class WallpaperModel extends HiveObject {
     );
   }
 
+  /// Create a local-video based model.
+  factory WallpaperModel.fromLocalVideo(String path) {
+    return WallpaperModel(
+      id: 'video_${path.hashCode}'.toString(),
+      url: path,
+      thumbUrl: path,
+      localPath: path,
+    );
+  }
+
   /// Whether this is a local file (not a network URL).
   bool get isLocal => localPath != null && localPath!.isNotEmpty;
+
+  /// Whether this wallpaper is a video file.
+  bool get isVideo {
+    if (localPath == null) return false;
+    final lower = localPath!.toLowerCase();
+    return lower.endsWith('.mp4') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.mkv') ||
+        id.startsWith('video_');
+  }
 
   @override
   bool operator ==(Object other) =>

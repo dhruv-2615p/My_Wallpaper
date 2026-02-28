@@ -47,6 +47,7 @@ class WallpaperService {
         'isWaterEnabled':       fx.isWaterEnabled,
         'waterLevel':           fx.waterLevel,
         'waterColorHex':        fx.waterColor,
+        'iceCount':             fx.iceCount,
         'isColorOverlayEnabled': fx.isColorOverlayEnabled,
         'colorOverlayHex':      fx.colorOverlayHex,
         'colorOverlayOpacity':  fx.colorOverlayOpacity,
@@ -68,11 +69,35 @@ class WallpaperService {
   ///
   /// [videoPath] must be an absolute path to a local video file (MP4/WEBM).
   /// Opens the system live-wallpaper picker pre-pointed at [VideoLiveWallpaperService].
-  static Future<bool> setVideoLiveWallpaper(String videoPath) async {
+  /// Passes [fx] so effect overlays can be rendered natively alongside the video.
+  static Future<bool> setVideoLiveWallpaper(
+    String videoPath, {
+    EffectSettings? fx,
+  }) async {
     try {
-      final result = await _channel.invokeMethod<bool>('setVideoLiveWallpaper', {
+      final params = <String, dynamic>{
         'videoPath': videoPath,
-      });
+      };
+      if (fx != null) {
+        params.addAll({
+          'sensitivity':           fx.gyroSensitivity,
+          'isGyroEnabled':         fx.isGyroEnabled,
+          'isWaterEnabled':        fx.isWaterEnabled,
+          'waterLevel':            fx.waterLevel,
+          'waterColorHex':         fx.waterColor,
+          'iceCount':              fx.iceCount,
+          'isColorOverlayEnabled': fx.isColorOverlayEnabled,
+          'colorOverlayHex':       fx.colorOverlayHex,
+          'colorOverlayOpacity':   fx.colorOverlayOpacity,
+          'isBlurEnabled':         fx.isBlurEnabled,
+          'blurAmount':            fx.blurAmount,
+          'isParticlesEnabled':    fx.isParticlesEnabled,
+          'particleTypeIndex':     fx.particleTypeIndex,
+          'particleCount':         fx.particleCount,
+        });
+      }
+      final result =
+          await _channel.invokeMethod<bool>('setVideoLiveWallpaper', params);
       debugPrint('WallpaperService.setVideoLiveWallpaper result: $result');
       return result ?? false;
     } catch (e) {

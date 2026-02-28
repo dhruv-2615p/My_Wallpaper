@@ -44,6 +44,10 @@ class MainActivity : FlutterActivity() {
                             result.error("INVALID_ARG", "videoPath is required", null); return@setMethodCallHandler
                         }
 
+                        // Save all effect settings (reuse helper)
+                        saveEffectPrefs(call.arguments as Map<*, *>, videoPath)
+
+                        // Also store the video-specific path key
                         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                             .edit()
                             .putString("video_path", videoPath)
@@ -72,6 +76,7 @@ class MainActivity : FlutterActivity() {
         prefs.putFloat("water_level",        (args["waterLevel"] as? Double)?.toFloat() ?: 0.2f)
         val waterHex = args["waterColorHex"] as? String ?: "#4400BFFF"
         prefs.putInt("water_color_argb", parseHexColor(waterHex))
+        prefs.putInt("ice_count", args["iceCount"] as? Int ?: 3)
 
         // Colour overlay
         prefs.putBoolean("is_color_overlay",  args["isColorOverlayEnabled"] as? Boolean ?: false)

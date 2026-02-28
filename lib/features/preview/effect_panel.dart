@@ -135,6 +135,18 @@ class _EffectPanelState extends ConsumerState<EffectPanel>
                           ),
                         ),
                         ListTile(
+                          title: const Text('Ice Cubes'),
+                          subtitle: Slider(
+                            value: fx.iceCount.toDouble(),
+                            min: 0,
+                            max: 5,
+                            divisions: 5,
+                            label: fx.iceCount.toString(),
+                            onChanged: (v) =>
+                                notifier.setIceCount(v.round()),
+                          ),
+                        ),
+                        ListTile(
                           title: const Text('Water Color'),
                           trailing: GestureDetector(
                             onTap: () => _pickColor(

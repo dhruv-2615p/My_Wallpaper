@@ -46,6 +46,9 @@ dependencies:
   shimmer: ^3.0.0
   smooth_page_indicator: ^1.2.0+1
 
+  # Video Playback
+  video_player: ^2.9.2
+
   # File & Storage
   path_provider: ^2.1.4
 
