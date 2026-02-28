@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gyro_live_wallpaper_description">Live wallpaper with gyroscope parallax effect</string>
+    <string name="video_live_wallpaper_description">Live wallpaper that plays a looping video</string>
+</resources>

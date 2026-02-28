@@ -26,7 +26,7 @@ class AppTheme {
           selectedItemColor: AppColors.primary,
           unselectedItemColor: Colors.grey,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           color: AppColors.darkCard,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -77,7 +77,7 @@ class AppTheme {
           selectedItemColor: AppColors.primary,
           unselectedItemColor: Colors.grey,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           color: AppColors.lightCard,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

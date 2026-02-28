@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import '../../models/wallpaper_model.dart';
 import '../../providers/effect_provider.dart';
 import '../../providers/favorites_provider.dart';
@@ -54,7 +55,37 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
     }
   }
 
+  /// Set a live wallpaper so the gyroscope parallax effect works on the
+  /// home-screen too. Android only — launches the system live-wallpaper picker.
+  Future<void> _setLiveWallpaper() async {
+    setState(() => _isSettingWallpaper = true);
+    try {
+      final imageUrl = widget.wallpaper.isLocal
+          ? widget.wallpaper.localPath!
+          : widget.wallpaper.url;
+      final path = await ImageUtils.saveImageForLiveWallpaper(imageUrl);
+      if (path == null) {
+        if (mounted) context.showSnack('Failed to save image for live wallpaper');
+        return;
+      }
+      final fx = ref.read(effectSettingsProvider);
+      final ok = await WallpaperService.setLiveWallpaper(path, fx);
+      if (mounted) {
+        if (ok) {
+          context.showSnack(
+            'Live wallpaper picker opened — tap "Set wallpaper" to apply',
+          );
+        } else {
+          context.showSnack('Failed to open live wallpaper picker');
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isSettingWallpaper = false);
+    }
+  }
+
   void _showSetWallpaperDialog() {
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -79,9 +110,26 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
+            // Live wallpaper (Android only) — shown first so it is prominent
+            if (isAndroid)
+              ListTile(
+                leading: const Icon(Icons.motion_photos_on_rounded,
+                    color: Colors.deepPurpleAccent),
+                title: const Text('Live Wallpaper (with Gyro)'),
+                subtitle: const Text(
+                  'Home screen parallax effect using gyroscope',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setLiveWallpaper();
+                },
+              ),
+            if (isAndroid) const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.home_rounded),
               title: const Text('Home Screen'),
+              subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
               onTap: () {
                 Navigator.pop(context);
                 _setWallpaper(WallpaperService.homeScreen);
@@ -90,6 +138,7 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
             ListTile(
               leading: const Icon(Icons.lock_rounded),
               title: const Text('Lock Screen'),
+              subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
               onTap: () {
                 Navigator.pop(context);
                 _setWallpaper(WallpaperService.lockScreen);
@@ -98,6 +147,7 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
             ListTile(
               leading: const Icon(Icons.phone_android_rounded),
               title: const Text('Both Screens'),
+              subtitle: const Text('Static image', style: TextStyle(fontSize: 12)),
               onTap: () {
                 Navigator.pop(context);
                 _setWallpaper(WallpaperService.bothScreens);
