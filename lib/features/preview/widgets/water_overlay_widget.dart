@@ -4,6 +4,120 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
+// ─── Shared wave math ───────────────────────────────────────────────────────
+// Extracted so both the CustomClipper (backdrop blur boundary) and the
+// CustomPainter produce exactly the same water surface.
+
+class _WaveMath {
+  /// Y-coordinate of the water surface at horizontal position [x].
+  static double surfaceY(
+    double x, {
+    required double sw,
+    required double sh,
+    required double waterLevel,
+    required double tilt,
+    required double phase,
+  }) {
+    final baseY = sh * (1.0 - waterLevel);
+    final tiltOffset = -(x / sw - 0.5) * tilt * sh * 0.55;
+    final r1 = sin(phase * 0.35 + x * 0.008) * 6.0;
+    final r2 = sin(phase * 0.8 + x * 0.018 + 2.0) * 3.5;
+    final r3 = cos(phase * 1.5 + x * 0.04 - 1.0) * 1.5;
+    return baseY + tiltOffset + r1 + r2 + r3;
+  }
+
+  /// Open Catmull-Rom → cubic-bézier surface curve (stroke-ready).
+  static Path buildSurfaceLine({
+    required double sw,
+    required double sh,
+    required double waterLevel,
+    required double tilt,
+    required double phase,
+    double yOffset = 0,
+  }) {
+    const step = 24.0;
+    final pts = <Offset>[];
+    for (double x = 0; x <= sw; x += step) {
+      pts.add(Offset(
+        x,
+        surfaceY(x, sw: sw, sh: sh, waterLevel: waterLevel, tilt: tilt, phase: phase) + yOffset,
+      ));
+    }
+    if (pts.last.dx < sw) {
+      pts.add(Offset(
+        sw,
+        surfaceY(sw, sw: sw, sh: sh, waterLevel: waterLevel, tilt: tilt, phase: phase) + yOffset,
+      ));
+    }
+
+    final path = Path();
+    path.moveTo(pts[0].dx, pts[0].dy);
+    for (int i = 0; i < pts.length - 1; i++) {
+      final p0 = pts[max(0, i - 1)];
+      final p1 = pts[i];
+      final p2 = pts[min(pts.length - 1, i + 1)];
+      final p3 = pts[min(pts.length - 1, i + 2)];
+
+      final cp1x = p1.dx + (p2.dx - p0.dx) / 6.0;
+      final cp1y = p1.dy + (p2.dy - p0.dy) / 6.0;
+      final cp2x = p2.dx - (p3.dx - p1.dx) / 6.0;
+      final cp2y = p2.dy - (p3.dy - p1.dy) / 6.0;
+
+      path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.dx, p2.dy);
+    }
+    return path;
+  }
+
+  /// Closed fill path (surface → bottom-right → bottom-left → close).
+  static Path buildFilledPath({
+    required double sw,
+    required double sh,
+    required double waterLevel,
+    required double tilt,
+    required double phase,
+    double yOffset = 0,
+  }) {
+    final line = buildSurfaceLine(
+      sw: sw, sh: sh, waterLevel: waterLevel, tilt: tilt, phase: phase, yOffset: yOffset,
+    );
+    return Path.from(line)
+      ..lineTo(sw, sh)
+      ..lineTo(0, sh)
+      ..close();
+  }
+}
+
+// ─── Backdrop-blur clipper ──────────────────────────────────────────────────
+// Clips to the water fill region so a BackdropFilter only blurs the wallpaper
+// visible *through* the water — simulating light refraction.
+
+class _WaterClipper extends CustomClipper<Path> {
+  final double time;
+  final double waterLevel;
+  final double tilt;
+
+  _WaterClipper({
+    required this.time,
+    required this.waterLevel,
+    required this.tilt,
+  });
+
+  @override
+  Path getClip(Size size) {
+    return _WaveMath.buildFilledPath(
+      sw: size.width,
+      sh: size.height,
+      waterLevel: waterLevel,
+      tilt: tilt,
+      phase: time * 2 * pi,
+    );
+  }
+
+  @override
+  bool shouldReclip(covariant _WaterClipper old) =>
+      old.time != time || old.tilt != tilt || old.waterLevel != waterLevel;
+}
+
 /// Realistic still-water overlay with floating ice cubes, controlled by
 /// device gravity (accelerometer).
 ///
@@ -15,6 +129,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 /// Rendering:
 ///  – Catmull-Rom → cubic-bezier surface curve (smooth & curvy, not straight).
 ///  – Multi-layer gradient with high-opacity floor for visible, rich colour.
+///  – Backdrop blur behind water for realistic light refraction.
 ///  – Ice collision repulsion so cubes never merge.
 class WaterOverlayWidget extends StatefulWidget {
   final double waterLevel; // 0.0 – 0.5 (fraction from bottom)
@@ -147,15 +262,33 @@ class _WaterOverlayWidgetState extends State<WaterOverlayWidget>
         }
 
         return RepaintBoundary(
-          child: CustomPaint(
-            size: Size.infinite,
-            painter: _WaterIcePainter(
-              time: _anim.value,
-              waterLevel: widget.waterLevel,
-              tilt: tilt,
-              color: widget.waterColor,
-              ices: _ices,
-            ),
+          child: Stack(
+            children: [
+              // Layer A: Backdrop blur clipped to the water shape.
+              // Simulates light refraction / distortion through water.
+              ClipPath(
+                clipper: _WaterClipper(
+                  time: _anim.value,
+                  waterLevel: widget.waterLevel,
+                  tilt: tilt,
+                ),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              // Layer B: Water gradient, caustics, surface highlights & ice.
+              CustomPaint(
+                size: Size.infinite,
+                painter: _WaterIcePainter(
+                  time: _anim.value,
+                  waterLevel: widget.waterLevel,
+                  tilt: tilt,
+                  color: widget.waterColor,
+                  ices: _ices,
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -205,50 +338,28 @@ class _WaterIcePainter extends CustomPainter {
     required this.ices,
   });
 
-  // ── Surface‐Y function ────────────────────────────────────────────────
-  // Bigger amplitudes (6,3.5,1.5 px) + stronger tilt factor (0.55).
+  // ── Surface helpers (delegated to shared _WaveMath) ─────────────────────
   double _surfaceY(double x, double sw, double sh, double phase) {
-    final baseY = sh * (1.0 - waterLevel);
-    // 0.55 of screen height at full tilt → dramatic horizontal behaviour.
-    final tiltOffset = -(x / sw - 0.5) * tilt * sh * 0.55;
-    // Three harmonics with different wavelengths & speeds.
-    final r1 = sin(phase * 0.35 + x * 0.008) * 6.0;  // big slow swell
-    final r2 = sin(phase * 0.8 + x * 0.018 + 2.0) * 3.5; // medium ripple
-    final r3 = cos(phase * 1.5 + x * 0.04 - 1.0) * 1.5;  // small shimmer
-    return baseY + tiltOffset + r1 + r2 + r3;
+    return _WaveMath.surfaceY(
+      x,
+      sw: sw,
+      sh: sh,
+      waterLevel: waterLevel,
+      tilt: tilt,
+      phase: phase,
+    );
   }
 
-  // ── Build a smooth Catmull-Rom cubic-bezier surface path ──────────────
-  // Sampled at 24px intervals, converted through Catmull-Rom → cubicTo.
-  // This produces CURVY organic waves, not straight line segments.
   Path _buildSurfacePath(double sw, double sh, double phase,
       {double yOffset = 0}) {
-    const step = 24.0;
-    final pts = <Offset>[];
-    for (double x = 0; x <= sw; x += step) {
-      pts.add(Offset(x, _surfaceY(x, sw, sh, phase) + yOffset));
-    }
-    if (pts.last.dx < sw) {
-      pts.add(Offset(sw, _surfaceY(sw, sw, sh, phase) + yOffset));
-    }
-
-    final path = Path();
-    path.moveTo(pts[0].dx, pts[0].dy);
-
-    for (int i = 0; i < pts.length - 1; i++) {
-      final p0 = pts[max(0, i - 1)];
-      final p1 = pts[i];
-      final p2 = pts[min(pts.length - 1, i + 1)];
-      final p3 = pts[min(pts.length - 1, i + 2)];
-
-      final cp1x = p1.dx + (p2.dx - p0.dx) / 6.0;
-      final cp1y = p1.dy + (p2.dy - p0.dy) / 6.0;
-      final cp2x = p2.dx - (p3.dx - p1.dx) / 6.0;
-      final cp2y = p2.dy - (p3.dy - p1.dy) / 6.0;
-
-      path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.dx, p2.dy);
-    }
-    return path;
+    return _WaveMath.buildSurfaceLine(
+      sw: sw,
+      sh: sh,
+      waterLevel: waterLevel,
+      tilt: tilt,
+      phase: phase,
+      yOffset: yOffset,
+    );
   }
 
   @override
@@ -416,6 +527,29 @@ class _WaterIcePainter extends CustomPainter {
         ..strokeWidth = 1.0
         ..color = Colors.white.withOpacity(0.55),
     );
+
+    // Inner glow – soft inset radial light that gives a glassy 3D feel.
+    canvas.save();
+    canvas.clipPath(icePath);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: ice.width * 0.9,
+        height: ice.height * 0.9,
+      ),
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          max(ice.width, ice.height) * 0.55,
+          [
+            Colors.white.withOpacity(0.0),
+            Colors.white.withOpacity(0.22),
+          ],
+          [0.55, 1.0],
+        )
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.restore();
 
     // Crack lines.
     final crackRng = Random(ice.crackSeed);
