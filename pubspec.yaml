@@ -1,0 +1,67 @@
+name: my_flutter_app
+description: "GyroWall — A live wallpaper app with gyroscope parallax and physics effects."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Gyroscope & Sensors
+  sensors_plus: ^6.1.1
+
+  # Water & Physics Effects
+  water_fx: ^1.0.15
+
+  # Wallpaper Setting
+  async_wallpaper: ^2.0.0
+
+  # Image Handling
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  image: ^4.2.0
+
+  # Network & API
+  http: ^1.2.2
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # Local Storage
+  shared_preferences: ^2.3.2
+  hive_flutter: ^1.1.0
+  hive: ^2.2.3
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # UI & Layout
+  flutter_staggered_grid_view: ^0.7.0
+  flutter_colorpicker: ^1.1.0
+  shimmer: ^3.0.0
+  smooth_page_indicator: ^1.2.0+1
+
+  # File & Storage
+  path_provider: ^2.1.4
+
+  # Utilities
+  uuid: ^4.4.2
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.11
+  hive_generator: ^2.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/animations/
